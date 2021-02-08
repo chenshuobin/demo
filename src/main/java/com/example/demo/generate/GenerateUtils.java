@@ -10,9 +10,13 @@ import okhttp3.Call;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
+import org.apache.commons.lang3.ObjectUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.tomcat.util.http.fileupload.IOUtils;
+import org.bytedeco.javacpp.presets.opencv_core;
+import springfox.documentation.schema.Entry;
 
+import javax.sql.rowset.serial.SerialException;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.util.*;
@@ -34,7 +38,7 @@ public class GenerateUtils {
     public String packagePath;
     public String url;
 
-    GenerateUtils(String url, String classPath) {
+    public GenerateUtils(String url, String classPath) {
         if (StringUtils.isEmpty(url)) {
             throw new NullPointerException("url 不能为空");
         }
@@ -49,6 +53,7 @@ public class GenerateUtils {
 
     }
 
+
     public void generate() throws Exception {
         //获取swagger 信息
         //swagger 中有"$" 字符需要删除掉，原因是无法解析 会被识别为特殊内容
@@ -62,7 +67,7 @@ public class GenerateUtils {
         }
         //用户自定义url解析成爬出路径的url
         //
-        String urlPath = "http://java2.demo.ehi.com.cn/Reporting-System/v2/api-docs";
+        String urlPath = "http://localhost:8881/koala-finance/v2/api-docs";
         String substring = urlPath.substring(0, urlPath.lastIndexOf("/"));
         final String finalUrlPath = substring.substring(0, substring.lastIndexOf("/"));
         //转化成json 进行解析
@@ -74,7 +79,41 @@ public class GenerateUtils {
         // http   https
         String httpOrHttps = (String) jsonObject.get("schemes");
         String className = (String) getObject(jsonObject, "info.title");
+        //尝试根据path中的tag将不同模块的实体类分开，失败，原因：paths下的实体类数据有缺失，并没有definitions中的全面
+//        JSONObject bypath = (JSONObject) jsonObject.get("paths");
+//        Set<String> keys = bypath.keySet();
+//        List<String> definitionNames = new ArrayList<>();
+//        for (String key : keys) {
+//            JSONObject httpMethod = (JSONObject) bypath.get(key);
+//            //get/post/put/delete 层下的具体json--summary produces  operationId  responses  parameters  tags consumes
+//            for (String httpMethodKey : httpMethod.keySet()) {
+//                JSONObject tagsAndParameters = (JSONObject) httpMethod.get(httpMethodKey);
+//                String controllerName = tagsAndParameters.get("tags").toString();
+//                String substring1 = controllerName.substring(2, controllerName.length() - 2);
+//                if(!substring1.equals("bank-transfer-settlement-controller")){
+//                    continue;
+//                }
+//
+//                JSONArray parametersArray = (JSONArray) tagsAndParameters.get("parameters");
+//                if(Objects.isNull(parametersArray)){
+//                    continue;
+//                }
+//                JSONObject parameters =(JSONObject) parametersArray.get(0);
+//                JSONObject schema = (JSONObject) parameters.get("schema");
+//                if(Objects.isNull(schema)){
+//                    continue;
+//                }
+//                String refVal = (String) schema.get("ref");
+//                if(Objects.isNull(refVal)){
+//                    continue;
+//                }
+//                String definition = refVal.substring(14);
+//                definitionNames.add(definition);
+//            }
+//        }
+
         //实体类的 包括返回和入参 TODO 这里需要进入另一个方法去执行和主流没有直接联系
+        //修改，暂时注释
         JSONObject definitions = jsonObject.getJSONObject("definitions");
         //根据key value 将实体信息进行组合
         Set<Map.Entry<String, Object>> entries = definitions.entrySet();
@@ -84,6 +123,9 @@ public class GenerateUtils {
         List<Model> models = new ArrayList<>();
         Map<String, String> modelpath = new HashMap();
         modelpath.put("Result", "import cn.seed.common.core.Result;\n");
+
+
+        // 2021年2月4日-获取实体的信息 todo 仅抓取某个controller下的实体
         for (Map.Entry<String, Object> entry : entries) {
             String key = entry.getKey();
             //这种返回参数的key 直接忽略
@@ -92,6 +134,7 @@ public class GenerateUtils {
             }
             Model model = new Model();
             models.add(model);
+            //todo 现所有json下的接口入参出参都放在了同一路径下，需要分模块存放   modelPath -> 导包    rootPath -> 文件路径  packagePath -> 包路径
             String rootPath = packagePath + DOT + MODELPATH + DOT + key + SPERATOR;
             //将实体的路径和名称 存放到
             modelpath.put(key, IMPORT + rootPath + BR);
@@ -122,6 +165,8 @@ public class GenerateUtils {
                 ContentsImport.getValue(type).ifPresent(item -> importProperties.add(item.name()));
                 if (type.contains("#/definitions/")) {
                     type = type.replaceAll("#/definitions/", "");
+                    type = type.replaceAll("«","<");
+                    type = type.replaceAll("»",">");
                 }
                 memberMo.setMemberType(type);
                 if (ModelClassType.isArray(type1)) {
@@ -129,8 +174,18 @@ public class GenerateUtils {
                     String itemName;
                     if (object == null) {
                         itemName = ((String) getObject(value, "items.type"));
+                        if(itemName.equals("integer")){
+                            itemName = "Integer";
+                        } else if(itemName.equals("string")){
+                            itemName = "String";
+                        }
                     } else {
                         itemName = ((String) object).substring(REFLENGTH);
+                        if(itemName.equals("integer")){
+                            itemName = "Integer";
+                        } else if(itemName.equals("string")){
+                            itemName = "String";
+                        }
                     }
 
                     memberMo.setItemName(itemName);
@@ -144,6 +199,9 @@ public class GenerateUtils {
                 memberMo.setDescription(description == null ? "" : description);
                 memberModel.add(memberMo);
             }
+
+
+
         }
         JSONArray tags = jsonObject.getJSONArray("tags");
         //所有的controller 名称和描述所有的接口名称
@@ -182,6 +240,9 @@ public class GenerateUtils {
                 List<String> produces = value.getJSONArray("produces").toJavaList(String.class);
                 methodModel.setConsumes(consumes);
                 methodModel.setProduces(produces);
+
+
+                //设置方法的返回参数
                 String returnName = (String) getObject(value, "responses.200.schema.ref");
                 Optional<ContentsConvert> contentsConvert = ContentsConvert.ifContainGet(returnName);
                 if (contentsConvert.isPresent()) {
@@ -229,6 +290,14 @@ public class GenerateUtils {
                 if (parameters == null) {
                     continue;
                 }
+                if(parameters.size()>3){
+                    JSONObject jsonObject1 = (JSONObject) parameters.get(3);
+                    if(jsonObject1.get("type").equals("array")){
+                        System.out.println(jsonObject1.toString());
+                        System.out.println("");
+                    }
+                }
+
                 if (RequestMethod.isGetMethod(urlMethodType)) {
                     methodModel.setParams(parameters.toJavaList(TypeParam.class));
                 } else {
@@ -350,11 +419,14 @@ public class GenerateUtils {
             //fein 接口class 路径
             String interfaceClass = classPath + APIPATH + "\\" + getInterfaceName(value.getInterfaceName()) + DOT + JAVA;
             //service 接口路径
-            String serviceInterfacePath = IMPORT+packagePath + DOT + SERVICEPATH + DOT + getInterfaceName(value.getInterfaceName())+"Service" + SPERATOR;
+            String serviceInterfacePath = IMPORT+packagePath + DOT + SERVICEPATH + DOT + getInterfaceName(value.getInterfaceName()).substring(0,getInterfaceName(value.getInterfaceName()).length()-3)
+                    +"Service" + SPERATOR;
             //service 接口class 路径
-            String serviceInterfaceClass = classPath + SERVICEPATH + "\\" + getInterfaceName(value.getInterfaceName())+"Service" + DOT + JAVA;
+            String serviceInterfaceClass = classPath + SERVICEPATH + "\\" + getInterfaceName(value.getInterfaceName()).substring(0,getInterfaceName(value.getInterfaceName()).length()-3)
+                    +"Service" + DOT + JAVA;
             //service impl 路径
-            String serviceImplClass = classPath +SERVICEPATH+"\\"+ IMPLPATH + "\\" + getInterfaceName(value.getInterfaceName())+"ServiceImpl"  + DOT + JAVA;
+            String serviceImplClass = classPath +SERVICEPATH+"\\"+ IMPLPATH + "\\" + getInterfaceName(value.getInterfaceName()).substring(0,getInterfaceName(value.getInterfaceName()).length()-3)
+                    +"ServiceImpl"  + DOT + JAVA;
 
             File file = new File(interfaceClass);
             FileOutputStream fileOutputStream = new FileOutputStream(file);
@@ -402,16 +474,18 @@ public class GenerateUtils {
             //public class name {
             interfaceString.append("public interface " + getInterfaceName(value.getInterfaceName()) + LEFT_BRACE + BR);
             serviceImplString.append("@Service\n");
-            serviceImplString.append("public class"+SPEACE+getInterfaceName(value.getInterfaceName())+"ServiceImpl implements"+SPEACE+getInterfaceName(value.getInterfaceName())+"Service" + LEFT_BRACE + BR);
+            serviceImplString.append("public class"+SPEACE+getInterfaceName(value.getInterfaceName()).substring(0,getInterfaceName(value.getInterfaceName()).length()-3)
+                    +"ServiceImpl implements"+SPEACE+getInterfaceName(value.getInterfaceName()).substring(0,getInterfaceName(value.getInterfaceName()).length()-3)+"Service" + LEFT_BRACE + BR);
             serviceImplString.append(TAB+"@Autowired" +BR+
-                                     TAB+"private Feign.Builder feign;"+BR);
-            serviceInterfaceString.append("public interface " + getInterfaceName(value.getInterfaceName())+"Service" + LEFT_BRACE + BR);
+                                     TAB+"private Feign.Builder builder;"+BR);
+            serviceInterfaceString.append("public interface " + getInterfaceName(value.getInterfaceName()).substring(0,getInterfaceName(value.getInterfaceName()).length()-3)
+                    +"Service" + LEFT_BRACE + BR);
             value.getMethodModels().forEach(item -> {
 
                 //@RequestLine() Get
                 //
                 StringJoiner urlJoiner = new StringJoiner("&", "?", "");
-                StringJoiner bodyJoiner = new StringJoiner("", "({\"", "\"})");
+//                StringJoiner bodyJoiner = new StringJoiner("", "({\"", "\"})");
                 StringJoiner paramJoiner = new StringJoiner(",", "(", ")");
                 StringJoiner paramNameJoiner = new StringJoiner(",", "(", ")");
                 StringJoiner descrptionJoiner = new StringJoiner("*");
@@ -420,15 +494,22 @@ public class GenerateUtils {
                 //@Param
                 item.getParams().forEach(param -> {
                     urlJoiner.add(param.getName() + "=" + LEFT_BRACE + param.getName() + RIGHT_BRACE);
-                    paramJoiner.add("@Param(\"" + param.getName() + "\") " + ModelClassType.getClassName(param.getType()) + SPEACE + param.getName());
+                    //不是常规数据类型  todo 有个bug  当get请求中有请求体时，请求体下的List<T>类只会拼出个list，后面没有了
+                    if(ModelClassType.isBodyType(param.getType())){
+                        System.out.println(param.getType());
+                        paramJoiner.add(ModelClassType.getClassName(param.getType()) + SPEACE + param.getName());
+                    }else{
+                        paramJoiner.add("@Param(\"" + param.getName() + "\") " + ModelClassType.getClassName(param.getType()) + SPEACE + param.getName());
+                    }
                     interfaceparamJoiner.add(ModelClassType.getClassName(param.getType()) + SPEACE + param.getName());
                     paramNameJoiner.add(param.getName());
                     descrptionJoiner.add(param.getName() + "-->" + param.getDescription() + BR);
                 });
                 //post 请求
+
                 item.getParamsObject().forEach(paramObject -> {
-                    bodyJoiner.add(paramObject.getName());
-                    paramJoiner.add("@Param(\"" + paramObject.getName() + "\") " + paramObject.getSchema() + SPEACE + paramObject.getName());
+//                    bodyJoiner.add(paramObject.getName());
+                    paramJoiner.add(paramObject.getSchema() + SPEACE + paramObject.getName());
                     interfaceparamJoiner.add(paramObject.getSchema() + SPEACE + paramObject.getName());
                     paramNameJoiner.add(paramObject.getName());
                 });
@@ -439,13 +520,14 @@ public class GenerateUtils {
                             + "\t**/\n");
                 }
                 interfaceString.append(TAB + "@RequestLine(\"" + item.getApiType().toUpperCase() + " " + item.getHttpRout() + (urlJoiner.length() != 1 ? urlJoiner.toString() : "") + "\")" + BR);
-                if (bodyJoiner.length() != 6) {
-                    interfaceString.append(TAB + "@Body" + bodyJoiner.toString() + BR);
-                }
+//                if (bodyJoiner.length() != 6) {
+//                    interfaceString.append(TAB + "@Body" + bodyJoiner.toString() + BR);
+//                }
                 interfaceString.append(TAB + item.getReturnName() + SPEACE + item.getMethodName().substring(0, item.getMethodName().indexOf("Using")) + (paramJoiner.length() != 2 ? paramJoiner.toString() : "()") + SPERATOR + BR);
                 serviceImplString.append(TAB+"@Override"+BR+TAB+"public"+SPEACE+ item.getReturnName() + SPEACE + item.getMethodName().substring(0, item.getMethodName().indexOf("Using")) + interfaceparamJoiner.toString() + LEFT_BRACE + BR);
                 //调用feign
-                serviceImplString.append(DOUBLE_TAB+"return feign.target("+getInterfaceName(value.getInterfaceName())+".class, \"\")."+item.getMethodName().substring(0, item.getMethodName().indexOf("Using"))+paramNameJoiner.toString()+SPERATOR+BR+TAB+RIGHT_BRACE+BR);
+                serviceImplString.append(DOUBLE_TAB+"return builder.target("+/**value.getInterfaceName())*/"KoalaFinanceApi.class, ApolloCommonConfig.getKoalaFinanceUrl())."
+                        +item.getMethodName().substring(0, item.getMethodName().indexOf("Using"))+paramNameJoiner.toString()+SPERATOR+BR+TAB+RIGHT_BRACE+BR);
                 serviceInterfaceString.append(TAB + item.getReturnName() + SPEACE + item.getMethodName().substring(0, item.getMethodName().indexOf("Using")) +  interfaceparamJoiner.toString()+ SPERATOR + BR);
             });
             interfaceString.append(RIGHT_BRACE);
@@ -473,6 +555,7 @@ public class GenerateUtils {
             }
             s = s.replaceFirst(s.substring(i, i + 2), String.valueOf((char) (s.charAt(i + 1) - 32)));
         }
+        s = s.substring(0,s.length()-10)+"Api";
         return s;
     }
 
@@ -511,7 +594,7 @@ public class GenerateUtils {
     }
 
     public static void main(String[] args) throws Exception {
-        GenerateUtils generateUtils = new GenerateUtils("http://carapi.demo.ehi.com.cn/swagger/eHi.Car/v1", "com.example.demo.pa");
+        GenerateUtils generateUtils = new GenerateUtils("http://localhost:8881/koala-finance/v2/api-docs", "com.example.demo.pa");
         generateUtils.generate();
     }
 }

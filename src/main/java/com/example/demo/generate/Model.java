@@ -10,7 +10,7 @@ import java.util.Set;
  * desc :实体信息
  */
 public class Model {
-    /*
+    /**
     实体类名字
      */
     private String modelName;
@@ -59,4 +59,6 @@ public class Model {
     public void setImportProperties(Set<String> importProperties) {
         this.importProperties = importProperties;
     }
+
+
 }

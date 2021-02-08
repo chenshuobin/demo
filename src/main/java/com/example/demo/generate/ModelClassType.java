@@ -1,6 +1,7 @@
 package com.example.demo.generate;
 
 import java.util.Arrays;
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -33,6 +34,21 @@ public enum ModelClassType {
         }
         return stringName;
     }
+
+    public static boolean isBodyType(String stringName){
+        List<ModelClassType> modelClassTypes = Arrays.asList(values());
+        for (ModelClassType modelClassType : modelClassTypes) {
+            if(stringName.equals(modelClassType.sName)){
+                   if(modelClassType.stringClassName.equals("List") || modelClassType.stringClassName.equals("Object")){
+                       return true;
+                   }else {
+                       continue;
+                   }
+            }
+        }
+        return false;
+    }
+
     public static boolean isArray(String target){
         return array.sName.equals(target);
     }

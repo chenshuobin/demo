@@ -20,6 +20,9 @@ public class RefObjectSerialized implements ObjectDeserializer {
             final JSONObject schema = (JSONObject) parser.parse("schema");
             if (schema.containsKey("items")) {
                 String itemType = ModelClassType.getClassName((schema.getJSONObject("items").getString("type")));
+                if(itemType.equals("String") && schema.getJSONObject("items").getString("type") == null){
+                    itemType = ((String) ((JSONObject) schema.getJSONObject("items")).get("ref")).replace("#/definitions/", "");
+                }
                 return (T) ("List<" + itemType + ">");
             } else {
                 String ref = schema.getString("ref");

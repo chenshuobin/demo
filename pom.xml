@@ -20,11 +20,11 @@
     </properties>
 
     <dependencies>
-        <!--   <dependency>
-               <groupId>cn.seed</groupId>
-               <artifactId>util-redis-lock</artifactId>
-               <version>0.7.9-20191203.062120-1</version>
-           </dependency>-->
+<!--        <dependency>-->
+<!--               <groupId>cn.seed</groupId>-->
+<!--               <artifactId>util-redis-lock</artifactId>-->
+<!--               <version>0.7.9-20191203.062120-1</version>-->
+<!--        </dependency>-->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
