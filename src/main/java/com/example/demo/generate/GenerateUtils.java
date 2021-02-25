@@ -14,6 +14,7 @@ import org.apache.commons.lang3.ObjectUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.tomcat.util.http.fileupload.IOUtils;
 import org.bytedeco.javacpp.presets.opencv_core;
+import org.springframework.util.CollectionUtils;
 import springfox.documentation.schema.Entry;
 
 import javax.sql.rowset.serial.SerialException;
@@ -67,7 +68,7 @@ public class GenerateUtils {
         }
         //用户自定义url解析成爬出路径的url
         //
-        String urlPath = "http://localhost:8881/koala-finance/v2/api-docs";
+        String urlPath = "http://localhost:9991/koala-invoice/v2/api-docs";
         String substring = urlPath.substring(0, urlPath.lastIndexOf("/"));
         final String finalUrlPath = substring.substring(0, substring.lastIndexOf("/"));
         //转化成json 进行解析
@@ -113,7 +114,6 @@ public class GenerateUtils {
 //        }
 
         //实体类的 包括返回和入参 TODO 这里需要进入另一个方法去执行和主流没有直接联系
-        //修改，暂时注释
         JSONObject definitions = jsonObject.getJSONObject("definitions");
         //根据key value 将实体信息进行组合
         Set<Map.Entry<String, Object>> entries = definitions.entrySet();
@@ -155,10 +155,20 @@ public class GenerateUtils {
                 JSONObject value = (JSONObject) member.getValue();
                 //type 类型
                 String type1 = value.getString("type");
+                String format = value.getString("format");
                 String type;
                 if (type1 == null) {
                     type = value.getString("ref");
-                } else {
+                }else if(Objects.nonNull(format) && StringUtils.startsWith(format,"int")){
+                    //format不为空时，判断是Integer还是Long或者其他数字类型
+                    if(format.equals("int32")){
+                        type = ModelClassType.getClassName("int32");
+                    } else if(format.equals("int64")){
+                        type = ModelClassType.getClassName("int64");
+                    } else{
+                        type = ModelClassType.getClassName(value.getString("type"));
+                    }
+                }else {
                     type = ModelClassType.getClassName(value.getString("type"));
                 }
                 //需要导入list 包
@@ -236,7 +246,11 @@ public class GenerateUtils {
                 methodModel.setDescription(methodDescription);
                 String methodName = value.getString("operationId");
                 methodModel.setMethodName(methodName);
-                List<String> consumes = value.getJSONArray("consumes").toJavaList(String.class);
+                List<String> consumes = new ArrayList<>();
+                if(Objects.nonNull(value.getJSONArray("consumes"))){
+                    consumes = value.getJSONArray("consumes").toJavaList(String.class);
+                }
+
                 List<String> produces = value.getJSONArray("produces").toJavaList(String.class);
                 methodModel.setConsumes(consumes);
                 methodModel.setProduces(produces);
@@ -290,14 +304,6 @@ public class GenerateUtils {
                 if (parameters == null) {
                     continue;
                 }
-                if(parameters.size()>3){
-                    JSONObject jsonObject1 = (JSONObject) parameters.get(3);
-                    if(jsonObject1.get("type").equals("array")){
-                        System.out.println(jsonObject1.toString());
-                        System.out.println("");
-                    }
-                }
-
                 if (RequestMethod.isGetMethod(urlMethodType)) {
                     methodModel.setParams(parameters.toJavaList(TypeParam.class));
                 } else {
@@ -594,7 +600,7 @@ public class GenerateUtils {
     }
 
     public static void main(String[] args) throws Exception {
-        GenerateUtils generateUtils = new GenerateUtils("http://localhost:8881/koala-finance/v2/api-docs", "com.example.demo.pa");
+        GenerateUtils generateUtils = new GenerateUtils("http://localhost:9991/koala-invoice/v2/api-docs", "com.example.demo.pa");
         generateUtils.generate();
     }
 }
