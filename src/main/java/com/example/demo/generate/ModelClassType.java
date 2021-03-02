@@ -14,6 +14,7 @@ public enum ModelClassType {
     object("object","Object"),
     string("string","String"),
     integer("int32","Integer"),
+    integer1("integer","Integer"),
     Long("int64","Long"),
     //list 需要特殊处理 加上类型
     array("array","List"),
